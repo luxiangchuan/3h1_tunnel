@@ -4,11 +4,14 @@ import { hostPortParser, socks5AddressParser } from './address.js';
 
 let userID = '61098bdc-b734-4874-9e87-d18b1ef1cfaf';
 let sha224Password = 'b379f280b9a4ce21e465cb31eea09a8fe3f4f8dd1850d9f630737538'; // sha224Encrypt('61098bdc-b734-4874-9e87-d18b1ef1cfaf')
-let s5Lock = false; // 是否启用 Skc0swodahs 协议，true=启用，false=禁用
 let landingAddress = '';
 let socks5Address = ''; // 格式: user:pass@host:port、:@host:port
 // NAT64 IPv6 前缀，设置的值已失效，暂时保留，期望未来能使用，新值从环境变量传入覆盖
 let nat64IPv6Prefix = `${["2001", "67c", "2960", "6464"].join(":")}::`;
+
+// 控制 Skc0swodahs 协议的两个关键参数
+let s5Lock = false; // true=启用，false=禁用
+let allowedRules = ["0.0.0.0/0", "::/0"]; // 你连接节点时，所用的公网IP，是否在这个范围内？不在就不允许连接，支持CIDR和具体的IP地址
 
 const domainList = [
 	'https://www.bilibili.com',
@@ -33,20 +36,28 @@ export default {
 		try {
 			userID = env.UUID4 || userID;
 			sha224Password = sha224Encrypt(env.USERPWD || userID);
-			s5Lock = ['1', 'true', 'yes', 'on'].includes((env.ENABLED_S5 || '').toLowerCase()) || s5Lock;
+
+			// 下面s5Lock和allowedRules控制ss协议
+			s5Lock = (() => {
+				const v = env.ENABLED_S5;
+				if (typeof v === 'boolean') return v;
+				if (typeof v === 'string') return ['1', 'true', 'yes', 'on'].includes(v.trim().toLowerCase());
+				return s5Lock;
+			})();
+			const raw = (env.ALLOWED_RULES ?? "").trim().split(/[, \n\r\t]+/).map(x => x.trim()).filter(Boolean);
+			allowedRules = raw.length > 0 ? raw : ["0.0.0.0/0", "::/0"];
 
 			let landingAddr = env.LANDING_ADDRESS || landingAddress;
 			let socks5Addr = env.SOCKS5 || socks5Address;
 			nat64IPv6Prefix = env.NAT64 || nat64IPv6Prefix; // 不要将整个nat64 prefix cidr传入使用
 
-			const upgradeHeader = request.headers.get('Upgrade');
 			const url = new URL(request.url);
 			const path = url.pathname;
+			const upgradeHeader = request.headers.get("Upgrade");
 			if (!upgradeHeader || upgradeHeader !== 'websocket') {
 				if (path === '/') {
 					const randomDomain = domainList[Math.floor(Math.random() * domainList.length)];
-					const redirectResponse = new Response(null, { status: 301, headers: { Location: randomDomain } });
-					return redirectResponse;
+					return Response.redirect(randomDomain, 301);
 				}
 				return new Response('404 Not Found!', { status: 404 });
 			} else {
@@ -144,9 +155,9 @@ async function handleWebSocket(request) {
 							return;
 						}
 
-						let mapCode = parsedProtocolMapCode(chunk);
+						let mapCode = parsedProtocolMapCode(chunk, request, allowedRules);
 						const parseHandlers = {
-							...(!s5Lock ? {} : { 0: [parseSkc0swodahsHeader, [chunk]] }),
+							...(s5Lock ? { 0: [parseSkc0swodahsHeader, [chunk]] } : {}),
 							1: [parseS5elvHeader, [chunk, userID]],
 							2: [parseNaj0rtHeader, [chunk, sha224Password]],
 						};
@@ -691,7 +702,7 @@ async function handleUDPOutbds(webSocket, vResponseHeader, log) {
 	};
 }
 
-function parsedProtocolMapCode(buffer) {
+function parsedProtocolMapCode(buffer, request = null, allowedRules = ["0.0.0.0/0", "::/0"]) {
 	const view = new Uint8Array(buffer);
 
 	// 检查 UUID（v4 或 v7） -> vless 协议
@@ -716,8 +727,65 @@ function parsedProtocolMapCode(buffer) {
 	// 未加密的 ss 协议
 	if (view.byteLength > 10) {
 		const validB1 = [0x01, 0x03, 0x04];
-		if (validB1.includes(view[0])) return 0;
+		// 由 IP 是否在白名单 allowedRules 中决定是否放行
+		if (validB1.includes(view[0]) && Array.isArray(allowedRules)) {
+			if (allowedRules.some(r => r === "0.0.0.0/0" || r === "::/0")) return 0;
+			if (request) {
+				const ip = request.headers.get("CF-Connecting-IP");
+				if (ip && allowedRules.some(rule => isIpMatch(ip, rule))) {
+					return 0;
+				}
+			}
+		}
 	}
 
 	return 3;
+}
+function isIpMatch(ip, rule) {
+	// 允许所有 IPv4 / IPv6 流量
+	if (["0.0.0.0/0", "::/0"].includes(rule)) return true;
+	// 判断 rule 是 CIDR 还是单个 IP
+	if (rule.includes("/")) {
+		return inCIDR(ip, rule);
+	} else {
+		return ip === rule; // 精确匹配
+	}
+}
+function inCIDR(ip, cidr) {
+	const [range, bits = "32"] = cidr.split('/');
+	const ipBig = ipToBigInt(ip);
+	const rangeBig = ipToBigInt(range);
+	const prefix = parseInt(bits, 10);
+
+	if (ip.includes(".") && range.includes(".")) {
+		// IPv4
+		const mask = ~((1 << (32 - prefix)) - 1) >>> 0;
+		return Number(ipBig & BigInt(mask)) === Number(rangeBig & BigInt(mask));
+	} else if (!ip.includes(".") && !range.includes(".")) {
+		// IPv6
+		const mask = (1n << 128n) - (1n << (128n - BigInt(prefix)));
+		return (ipBig & mask) === (rangeBig & mask);
+	} else {
+		return false; // IPv4 vs IPv6 不匹配
+	}
+}
+function ipToBigInt(ip) {
+	if (ip.includes(".")) { // IPv4
+		const [a, b, c, d] = parseIPv4(ip);
+		return BigInt((a << 24) | (b << 16) | (c << 8) | d);
+	} else { // IPv6
+		const parts = parseIPv6(ip);
+		return parts.reduce((acc, part) => (acc << 16n) + BigInt(part), 0n);
+	}
+}
+function parseIPv4(ip) {
+	return ip.split('.').map(x => parseInt(x, 10));
+}
+function parseIPv6(ip) {
+	const parts = ip.split("::");
+	let head = parts[0].split(":").filter(Boolean);
+	let tail = parts[1] ? parts[1].split(":").filter(Boolean) : [];
+	let missing = 8 - (head.length + tail.length);
+	let full = [...head, ...Array(missing).fill("0"), ...tail];
+	return full.map(x => parseInt(x || "0", 16));
 }

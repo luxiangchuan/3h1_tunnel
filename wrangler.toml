@@ -1,4 +1,4 @@
-name = "3h1-tunnel"
+name = "hellows"
 main = "src/worker.js"
 compatibility_date = "2023-12-18"
 workers_dev = true
@@ -7,6 +7,7 @@ workers_dev = true
 UUID4 = "61098bdc-b734-4874-9e87-d18b1ef1cfaf"   # vless，它优先于worker.js中的userID
 USERPWD = "61098bdc-b734-4874-9e87-d18b1ef1cfaf" # trojan，没有设置这个值，就使用前面的UUID4
 ENABLED_S5 = ""                                  # ss，可选['1', 'true', 'yes', 'on']启用ss协议，没有设置该变量值，默认是关闭，慎用
+ALLOWED_RULES = "0.0.0.0/0,::/0"                 # ss，允许哪个IP或哪些IP连接使用（默认所有IP），可输入纯IPv4/IPv6地址，精准匹配，也可以输入CIDR，允许这个范围内的IP使用
 # SOCKS5和PROXYIP
 SOCKS5 = ""                                      # 它优先于worker.js中的socks5Address，同时也优先于下面的LANDING_ADDRESS（PROXYIP）
 LANDING_ADDRESS = ""                             # 它优先于worker.js中的landingAddress，该参数就是大家公认的PROXYIP

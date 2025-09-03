@@ -149,10 +149,11 @@ function socks5AddressParser(address) {
 // src/worker-基础版.js
 var userID = "61098bdc-b734-4874-9e87-d18b1ef1cfaf";
 var sha224Password = "b379f280b9a4ce21e465cb31eea09a8fe3f4f8dd1850d9f630737538";
-var s5Lock = false;
 var landingAddress = "";
 var socks5Address = "";
 var nat64IPv6Prefix = `${["2001", "67c", "2960", "6464"].join(":")}::`;
+var s5Lock = false;
+var allowedRules = ["0.0.0.0/0", "::/0"];
 var domainList = [
   "https://www.bilibili.com",
   "https://www.nicovideo.jp",
@@ -174,18 +175,24 @@ var worker_default = {
     try {
       userID = env.UUID4 || userID;
       sha224Password = sha224Encrypt(env.USERPWD || userID);
-      s5Lock = ["1", "true", "yes", "on"].includes((env.ENABLED_S5 || "").toLowerCase()) || s5Lock;
+      s5Lock = (() => {
+        const v = env.ENABLED_S5;
+        if (typeof v === "boolean") return v;
+        if (typeof v === "string") return ["1", "true", "yes", "on"].includes(v.trim().toLowerCase());
+        return s5Lock;
+      })();
+      const raw = (env.ALLOWED_RULES ?? "").trim().split(/[, \n\r\t]+/).map((x) => x.trim()).filter(Boolean);
+      allowedRules = raw.length > 0 ? raw : ["0.0.0.0/0", "::/0"];
       let landingAddr = env.LANDING_ADDRESS || landingAddress;
       let socks5Addr = env.SOCKS5 || socks5Address;
       nat64IPv6Prefix = env.NAT64 || nat64IPv6Prefix;
-      const upgradeHeader = request.headers.get("Upgrade");
       const url = new URL(request.url);
       const path = url.pathname;
+      const upgradeHeader = request.headers.get("Upgrade");
       if (!upgradeHeader || upgradeHeader !== "websocket") {
         if (path === "/") {
           const randomDomain = domainList[Math.floor(Math.random() * domainList.length)];
-          const redirectResponse = new Response(null, { status: 301, headers: { Location: randomDomain } });
-          return redirectResponse;
+          return Response.redirect(randomDomain, 301);
         }
         return new Response("404 Not Found!", { status: 404 });
       } else {
@@ -268,9 +275,9 @@ async function handleWebSocket(request) {
             writer.releaseLock();
             return;
           }
-          let mapCode = parsedProtocolMapCode(chunk);
+          let mapCode = parsedProtocolMapCode(chunk, request, allowedRules);
           const parseHandlers = {
-            ...!s5Lock ? {} : { 0: [parseSkc0swodahsHeader, [chunk]] },
+            ...s5Lock ? { 0: [parseSkc0swodahsHeader, [chunk]] } : {},
             1: [parseS5elvHeader, [chunk, userID]],
             2: [parseNaj0rtHeader, [chunk, sha224Password]]
           };
@@ -741,7 +748,7 @@ async function handleUDPOutbds(webSocket, vResponseHeader, log) {
     }
   };
 }
-function parsedProtocolMapCode(buffer) {
+function parsedProtocolMapCode(buffer, request = null, allowedRules2 = ["0.0.0.0/0", "::/0"]) {
   const view = new Uint8Array(buffer);
   if (view.byteLength >= 17) {
     const version = (view[7] & 240) >> 4;
@@ -760,9 +767,60 @@ function parsedProtocolMapCode(buffer) {
   }
   if (view.byteLength > 10) {
     const validB1 = [1, 3, 4];
-    if (validB1.includes(view[0])) return 0;
+    if (validB1.includes(view[0]) && Array.isArray(allowedRules2)) {
+      if (allowedRules2.some((r) => r === "0.0.0.0/0" || r === "::/0")) return 0;
+      if (request) {
+        const ip = request.headers.get("CF-Connecting-IP");
+        if (ip && allowedRules2.some((rule) => isIpMatch(ip, rule))) {
+          return 0;
+        }
+      }
+    }
   }
   return 3;
+}
+function isIpMatch(ip, rule) {
+  if (["0.0.0.0/0", "::/0"].includes(rule)) return true;
+  if (rule.includes("/")) {
+    return inCIDR(ip, rule);
+  } else {
+    return ip === rule;
+  }
+}
+function inCIDR(ip, cidr) {
+  const [range, bits = "32"] = cidr.split("/");
+  const ipBig = ipToBigInt(ip);
+  const rangeBig = ipToBigInt(range);
+  const prefix = parseInt(bits, 10);
+  if (ip.includes(".") && range.includes(".")) {
+    const mask = ~((1 << 32 - prefix) - 1) >>> 0;
+    return Number(ipBig & BigInt(mask)) === Number(rangeBig & BigInt(mask));
+  } else if (!ip.includes(".") && !range.includes(".")) {
+    const mask = (1n << 128n) - (1n << 128n - BigInt(prefix));
+    return (ipBig & mask) === (rangeBig & mask);
+  } else {
+    return false;
+  }
+}
+function ipToBigInt(ip) {
+  if (ip.includes(".")) {
+    const [a, b, c, d] = parseIPv4(ip);
+    return BigInt(a << 24 | b << 16 | c << 8 | d);
+  } else {
+    const parts = parseIPv6(ip);
+    return parts.reduce((acc, part) => (acc << 16n) + BigInt(part), 0n);
+  }
+}
+function parseIPv4(ip) {
+  return ip.split(".").map((x) => parseInt(x, 10));
+}
+function parseIPv6(ip) {
+  const parts = ip.split("::");
+  let head = parts[0].split(":").filter(Boolean);
+  let tail = parts[1] ? parts[1].split(":").filter(Boolean) : [];
+  let missing = 8 - (head.length + tail.length);
+  let full = [...head, ...Array(missing).fill("0"), ...tail];
+  return full.map((x) => parseInt(x || "0", 16));
 }
 export {
   worker_default as default

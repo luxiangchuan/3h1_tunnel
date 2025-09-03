@@ -7,6 +7,7 @@
 | UUID4           | (必选) 用于Vless协议的userID，例如：61098bdc-b734-4874-9e87-d18b1ef1cfaf |
 | USERPWD         | (可选) 用于Trojan协议的password，在环境变量中设置，没有设置就是采用上面设置那个UUID4 |
 | ENABLED_S5      | (可选) 用于开启Shadowsocks协议，默认是关闭，不能使用它，慎用，由于无密码认证，域名一旦泄露，别人会盗用你的CF Workers使用量，启用它的有效值范围：['1', 'true', 'yes', 'on'] |
+| ALLOWED_RULES   | (可选) 只用于控制Shadowsocks协议，白名单，允许哪个IP或哪些IP连接使用（默认所有IP），可输入纯IPv4/IPv6地址，精准匹配，也可以输入CIDR，允许这个范围内的IP使用（eg. "192.168.1.1,192.168.100.0/24"，可以输入多个） |
 | LANDING_ADDRESS | (可选) 等价于大家公认的PROXYIP，改一个名字而已，不设置它，一些网站无法打开，格式：(Sub-)Domain:PORT、IPv4:PORT、[IPv6]:PORT（没有端口，默认是443端口） |
 | SOCKS5          | (可选) 不设置，一些网站无法打开，格式:  user:pass@host:port、:@host:port。它优先于LANDING_ADDRESS和NAT64，节点path中设置的`/pyip`或`/socks`为最高优先级 |
 | NAT64           | (可选) 兜底的PROXYIP替换方法，代码中设置的那个无效了，刚部署的，不能访问CF和CF保护的CDN站点（chatgpt、Netflix等这些站点） |
@@ -211,6 +212,18 @@ src/worker-基础版.js -----|=> dist/worker-基础版.js
 4、shadowsocks协议的，如果启用使用，可以手动安照下面配置，只靠tls加密保护上网数据
 
 <img src="images\ss.png" style="zoom: 67%;" />
+
+**问题初步解决**：
+
+已经添加 env.ALLOWED_RULES 值，可以在CF后台添加 **ALLOWED_RULES** 变量值，允许哪些IP、CIDR连接使用，启用该协议，默认所有IP都能使用。
+
+如果你电脑使用的公网IP是固定，就直接输入你的公网IP；如果你的IP会跳动，看规律，是否在CIDR范围内跳动，尽可能缩小CIDR范围，也可以输入多个值，用逗号隔开。一定要写正确，不要写错，代码没有严谨检测逻辑，那个逻辑增大CPU的消耗量，本来就经常出现“Worker exceeded CPU time limit.”问题（可能跟它没有关系）。
+
+除了这个限制IP方法，还有其它邪修方法，比如，通过自定义**User-Agent**请求头，隐藏暗语，只有自己知道，无视IP和地区，后来发现各个代理客户端设置的**User-Agent**请求头各不同，还有的不知道哪里设置，手搓yaml/json配置？而且请求头信息是透明（使用加密，怎么加密？改v2rayN等客户端？），浪费脑细胞，都不能真正解决问题。
+
+5、待解决问题：Worker exceeded CPU time limit.
+
+超出10毫秒的限制：https://developers.cloudflare.com/workers/platform/limits/#cpu-time
 
 ## 五、免责声明
 
