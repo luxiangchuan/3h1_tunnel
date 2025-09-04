@@ -1,4 +1,4 @@
-将`_worker.js`（订阅版）或`_worker_基础版.js`代码托管到Cloudflare的Workers或Pages后，按照下面内容操作。
+将`_worker.js`（订阅版）或`_worker_基础版.js`代码托管到CF的Workers或Pages后，按照下面内容操作。
 
 ## 一、CF中，设置环境变量
 
@@ -39,7 +39,7 @@
 - 使用例子
 
 ```
-https://worker.username.workers.dev/config?pwd=123456  # 假如123456是CF后台中，环境变量CONFIG_PASSWORD设置的值
+https://your_worker_domain/config?pwd=123456  # 假如123456是CF后台中，环境变量CONFIG_PASSWORD设置的值
 ```
 
 ### 2、怎么使用订阅
@@ -58,34 +58,34 @@ https://worker.username.workers.dev/config?pwd=123456  # 假如123456是CF后台
 #### （1）v2ray订阅，使用例子：
 
 ```
-https://worker.username.workers.dev/sub?pwd=123456&target=v2ray                     # 第一页的节点
-https://worker.username.workers.dev/sub?pwd=123456&target=v2ray&page=2              # 翻页，第二页
-https://worker.username.workers.dev/sub?pwd=123456&target=v2ray&port=2053           # 全部都使用这个端口
-https://worker.username.workers.dev/sub?pwd=123456&target=v2ray&host=githu.com      # 修改节点信息中的sni和host值
-https://worker.username.workers.dev/sub?pwd=123456&target=v2ray&path=/?ed=2560      # 修改节点信息中的path
-https://worker.username.workers.dev/sub?pwd=123456&target=v2ray&cidr=104.16.0.0/13  # 使用这个cidr范围内的随机IP生成订阅
+https://your_worker_domain/sub?pwd=123456&target=v2ray                     # 第一页的节点
+https://your_worker_domain/sub?pwd=123456&target=v2ray&page=2              # 翻页，第二页
+https://your_worker_domain/sub?pwd=123456&target=v2ray&port=2053           # 全部都使用这个端口
+https://your_worker_domain/sub?pwd=123456&target=v2ray&host=githu.com      # 修改节点信息中的sni和host值
+https://your_worker_domain/sub?pwd=123456&target=v2ray&path=/?ed=2560      # 修改节点信息中的path
+https://your_worker_domain/sub?pwd=123456&target=v2ray&cidr=104.16.0.0/13  # 使用这个cidr范围内的随机IP生成订阅
 ```
 
 #### （2）SingBox订阅，使用例子：
 
 ```
-https://worker.username.workers.dev/sub?pwd=123456&target=singbox                     # 第一页的节点
-https://worker.username.workers.dev/sub?pwd=123456&target=singbox&page=2              # 翻页，第二页
-https://worker.username.workers.dev/sub?pwd=123456&target=singbox&port=2053           # 全部都使用这个端口
-https://worker.username.workers.dev/sub?pwd=123456&target=singbox&host=githu.com      # 修改节点信息中的sni和host值
-https://worker.username.workers.dev/sub?pwd=123456&target=singbox&path=/?ed=2560      # 修改节点信息中的path
-https://worker.username.workers.dev/sub?pwd=123456&target=singbox&cidr=104.16.0.0/13  # 使用这个cidr范围内的随机IP生成订阅
+https://your_worker_domain/sub?pwd=123456&target=singbox                     # 第一页的节点
+https://your_worker_domain/sub?pwd=123456&target=singbox&page=2              # 翻页，第二页
+https://your_worker_domain/sub?pwd=123456&target=singbox&port=2053           # 全部都使用这个端口
+https://your_worker_domain/sub?pwd=123456&target=singbox&host=githu.com      # 修改节点信息中的sni和host值
+https://your_worker_domain/sub?pwd=123456&target=singbox&path=/?ed=2560      # 修改节点信息中的path
+https://your_worker_domain/sub?pwd=123456&target=singbox&cidr=104.16.0.0/13  # 使用这个cidr范围内的随机IP生成订阅
 ```
 
 #### （3）Clash订阅，使用例子：
 
 ```
-https://worker.username.workers.dev/sub?pwd=123456&target=clash                     # 第一页的节点
-https://worker.username.workers.dev/sub?pwd=123456&target=clash&page=2              # 翻页，第二页
-https://worker.username.workers.dev/sub?pwd=123456&target=clash&port=2053           # 全部都使用这个端口
-https://worker.username.workers.dev/sub?pwd=123456&target=clash&host=githu.com      # 修改节点信息中的sni和host值
-https://worker.username.workers.dev/sub?pwd=123456&target=clash&path=/?ed=2560      # 修改节点信息中的path
-https://worker.username.workers.dev/sub?pwd=123456&target=clash&cidr=104.16.0.0/13  # 使用这个cidr范围内的随机IP生成订阅
+https://your_worker_domain/sub?pwd=123456&target=clash                     # 第一页的节点
+https://your_worker_domain/sub?pwd=123456&target=clash&page=2              # 翻页，第二页
+https://your_worker_domain/sub?pwd=123456&target=clash&port=2053           # 全部都使用这个端口
+https://your_worker_domain/sub?pwd=123456&target=clash&host=githu.com      # 修改节点信息中的sni和host值
+https://your_worker_domain/sub?pwd=123456&target=clash&path=/?ed=2560      # 修改节点信息中的path
+https://your_worker_domain/sub?pwd=123456&target=clash&cidr=104.16.0.0/13  # 使用这个cidr范围内的随机IP生成订阅
 ```
 
 注意：
